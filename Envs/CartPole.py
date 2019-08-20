@@ -8,7 +8,7 @@ ACTION_SPACE = 2
 env = gym.make('CartPole-v0')
 env.seed(1)
 
-Agent = DQN(env, ACTION_SPACE, memory_size=2000)
+Agent = DQN(env, ACTION_SPACE, replace_itr=10, memory_size=1000)
 
 
 def train():
@@ -28,10 +28,11 @@ def train():
                 env.render()
 
             if done:
-                print('episode: {}/{}, score: {}'.format(episode, EPISODES, t))
+                print('Episode: {}/{}, Score: {}'.format(episode, EPISODES, t))
                 break
 
         Agent.replay(32)
+
 
 if __name__ == '__main__':
     train()

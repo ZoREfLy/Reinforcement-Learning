@@ -5,12 +5,12 @@ from Models.DQN import DQN
 import matplotlib.pyplot as plt
 
 
-EPISODES = 5
+EPISODES = 3
 ACTION_SPACE = 25
 env = gym.make('Pendulum-v0')
 env.seed(1)
 
-Agent = DQN(env, ACTION_SPACE)
+Agent = DQN(env, ACTION_SPACE, replace_itr=10)
 
 
 def train():
@@ -18,7 +18,7 @@ def train():
     for episode in tqdm(range(EPISODES)):
         t = 0
         state = env.reset().reshape([1, 3])
-        while t < 5000:
+        while t < 3000:
             action = Agent.choose_action(state)
             force = (action - (ACTION_SPACE - 1) / 2) / ((ACTION_SPACE - 1) / 4)
 
@@ -28,12 +28,12 @@ def train():
 
             state = next_state
 
-            if episode > 3:
+            if episode > 1:
                 env.render()
                 rewards = np.append(rewards, [reward])
 
-            if t > Agent.memory_size:
-                Agent.replay(3000)
+            if t > 1000:
+                Agent.replay(1000)
             t += 1
 
     # Agent.save_model('test1')
@@ -44,6 +44,7 @@ def train():
     plt.ylabel('accumulated reward')
     plt.grid()
     plt.show()
+
 
 if __name__ == '__main__':
     train()

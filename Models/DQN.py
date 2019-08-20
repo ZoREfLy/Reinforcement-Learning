@@ -12,14 +12,10 @@ from keras.models import Sequential
 
 class DQN:
     """Deep Q Network"""
-    def __init__(self, env, action_space, epsilon=1.0, epsilon_min=0.01, memory_size=3000, model_name=None):
+    def __init__(self, env, action_space, replace_itr, memory_size=3000, model_name=None):
         self.gamma = 0.95
-        self.epsilon_min = epsilon_min
-
-        self.epsilon = epsilon
         self.epsilon_decay = 0.993
         self.learning_rate = 0.001
-
         self.action_space = action_space
         self.observation_space = env.observation_space.shape[0]
 
@@ -27,9 +23,18 @@ class DQN:
         self._memory_size = memory_size
         self.memory = np.zeros((self.memory_size, self.observation_space * 2 + 3))
 
+        self.learning_counter = 0
+        self.replace_itr = replace_itr
+
         if not model_name:
-            self.model = self.build_model()
+            self.epsilon = 1.0
+            self.epsilon_min = 0.01
+            self.eval_network = self.build_model()
+            self.target_network = self.build_model()
+            self.target_network.set_weights(self.eval_network.get_weights())
         else:
+            self.epsilon = -1
+            self.epsilon_min = -1
             self.load_model(model_name)
 
     @property
@@ -47,7 +52,7 @@ class DQN:
     def choose_action(self, state):
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.action_space)
-        action_values = self.model.predict(state)
+        action_values = self.eval_network.predict(state)
         return np.argmax(action_values[0])
 
     def remember(self, state, action, reward, done, next_state):
@@ -57,7 +62,11 @@ class DQN:
         self.memory_counter += 1
 
     def replay(self, batch_size):
-        random_index = np.random.choice(self._memory_size, size=batch_size)
+        if self.memory_counter < batch_size:
+            random_index = np.random.choice(self.memory_counter, size=batch_size)
+        else:
+            random_index = np.random.choice(self._memory_size, size=batch_size)
+
         samples = self.memory[random_index, :]
 
         index = self.observation_space
@@ -66,8 +75,8 @@ class DQN:
         rewards = samples[:, index+1]
         next_states = samples[:, index+3:]
 
-        targets = rewards + self.gamma * np.amax(self.model.predict(next_states), axis=1)[:]
-        target_f = self.model.predict(states)
+        targets = rewards + self.gamma * np.amax(self.target_network.predict(next_states), axis=1)[:]
+        target_f = self.eval_network.predict(states)
 
         batch_index = np.arange(batch_size, dtype=np.int32)
         actions_index = actions.astype(int)
@@ -77,13 +86,17 @@ class DQN:
         actions_mask = actions_index[done_mask]
         target_f[done_mask, actions_mask] = rewards[done_mask]
 
-        self.model.fit(states, target_f, epochs=1, verbose=0)
+        self.eval_network.fit(states, target_f, epochs=1, verbose=0)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
+        self.learning_counter += 1
+        if self.learning_counter % self.replace_itr == 0:
+            self.target_network.set_weights(self.eval_network.get_weights())
+
     def save_model(self, name):
-        self.model.save(name)
+        self.eval_network.save(name)
 
     def load_model(self, name):
-        self.model = keras.models.load_model(name)
+        self.eval_network = keras.models.load_model(name)
